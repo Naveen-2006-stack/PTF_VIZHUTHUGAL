@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { label: 'Activity Summary', href: '/summer-activity', icon: <SunMedium className="w-5 h-5" /> },
           { label: 'Leave/Permission', href: '/leave-permission', icon: <FileCheck2 className="w-5 h-5" /> },
           { label: 'Reports', href: '/admin/reports', icon: <FileSpreadsheet className="w-5 h-5" /> },
-          { label: 'Notifications', href: '/notifications', icon: <Bell className="w-5 h-5" /> },
+          { label: 'Notification Center', href: '/admin/notifications', icon: <Bell className="w-5 h-5" /> },
         ];
 
       case 'SEMI_ADMIN':
@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { label: 'Summer Activity', href: '/summer-activity', icon: <SunMedium className="w-5 h-5" /> },
           { label: 'Attendance', href: '/attendance/abdul-kalam', icon: <CalendarCheck2 className="w-5 h-5" /> },
           { label: 'Leave & Permission', href: '/leave-permission', icon: <FileCheck2 className="w-5 h-5" /> },
-          { label: 'Notifications', href: '/notifications', icon: <Bell className="w-5 h-5" /> },
+          { label: 'Notification Center', href: '/admin/notifications', icon: <Bell className="w-5 h-5" /> },
           { label: 'Reports', href: '/admin/reports', icon: <FileSpreadsheet className="w-5 h-5" /> },
         ];
 
@@ -132,7 +132,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { label: 'Campuses', href: '/admin/campuses', icon: <Building2 className="w-5 h-5" /> },
           { label: 'Audit Logs', href: '/admin/audit-logs', icon: <ShieldCheck className="w-5 h-5" /> },
           { label: 'Reports', href: '/admin/reports', icon: <FileSpreadsheet className="w-5 h-5" /> },
-          { label: 'Notifications', href: '/notifications', icon: <Bell className="w-5 h-5" /> },
+          { label: 'Notification Center', href: '/admin/notifications', icon: <Bell className="w-5 h-5" /> },
           { label: 'Settings', href: '/settings', icon: <Settings className="w-5 h-5" /> },
         ];
     }

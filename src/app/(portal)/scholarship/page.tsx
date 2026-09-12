@@ -138,6 +138,7 @@ export default function ScholarshipPage() {
           category: 'RENEWAL',
           priority: 'HIGH',
           linkUrl: '/scholarship',
+          referenceId: `schol_${selectedApp.id}_${decision}`,
         });
       }
 

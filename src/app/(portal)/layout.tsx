@@ -7,6 +7,8 @@ import { Navbar } from '@/components/navigation/Navbar';
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav';
 import { useRouter, usePathname } from 'next/navigation';
 
+import { getUnreadCount } from '@/lib/notifications';
+
 export default function PortalLayout({
   children,
 }: {
@@ -14,8 +16,38 @@ export default function PortalLayout({
 }) {
   const { role, profile, student, staff, campusCode, isSpecialClassEligible, isLoading, signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Load and subscribe to unread notification count
+  useEffect(() => {
+    if (!profile?.id) return;
+    const fetchCount = async () => {
+      try {
+        const count = await getUnreadCount(profile.id);
+        setUnreadCount(count);
+      } catch (err) {
+        console.error('Failed to fetch unread notification count:', err);
+      }
+    };
+
+    fetchCount();
+
+    const handleUpdate = () => {
+      fetchCount();
+    };
+
+    window.addEventListener('ptf:notifications-updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    const interval = setInterval(fetchCount, 25000);
+
+    return () => {
+      window.removeEventListener('ptf:notifications-updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      clearInterval(interval);
+    };
+  }, [profile?.id, pathname]);
 
   // Route security guard
   useEffect(() => {
@@ -118,6 +150,7 @@ export default function PortalLayout({
             userName={userName}
             campusCode={campusCode}
             ptfId={ptfId}
+            unreadCount={unreadCount}
             onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             onSignOut={signOut}
           />

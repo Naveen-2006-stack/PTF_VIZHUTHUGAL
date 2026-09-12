@@ -23,6 +23,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { logAuditEvent } from '@/lib/audit';
+import { sendNotification } from '@/lib/notifications';
 
 export default function CtMarksPage() {
   const { role, profile, student } = useAuth();
@@ -355,6 +356,29 @@ export default function CtMarksPage() {
         entityId: selectedMarkForAction.id,
         newState: { status: nextStatus, remarks: adminRemarks },
       });
+
+      // Dispatch in-portal notification to student
+      const studentProfileId = selectedMarkForAction.student?.profile_id;
+      if (studentProfileId) {
+        const statusLabel =
+          nextStatus === 'VERIFIED'
+            ? 'Verified'
+            : nextStatus === 'CORRECTION_REQUIRED'
+            ? 'Correction Required'
+            : 'Rejected';
+
+        await sendNotification({
+          userId: studentProfileId,
+          title: `Cycle Test Mark ${statusLabel}`,
+          message: `Your Cycle Test mark submission has been marked as ${statusLabel.toLowerCase()}.${
+            adminRemarks ? ` Remarks: ${adminRemarks}` : ''
+          }`,
+          category: 'CT_MARKS',
+          priority: nextStatus === 'CORRECTION_REQUIRED' ? 'HIGH' : 'NORMAL',
+          linkUrl: '/academics/ct-marks',
+          referenceId: `ct_mark_${selectedMarkForAction.id}_${nextStatus}`,
+        });
+      }
 
       setAdminActionModalOpen(false);
       setSelectedMarkForAction(null);

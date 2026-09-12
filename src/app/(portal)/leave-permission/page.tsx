@@ -162,6 +162,18 @@ export default function LeavePermissionPage() {
         newState: { from: leaveFromDate, to: leaveToDate, reason: leaveReason },
       });
 
+      if (profile?.id) {
+        await sendNotification({
+          userId: profile.id,
+          title: 'Leave Application Submitted',
+          message: `Your leave application from ${leaveFromDate} to ${leaveToDate} has been submitted for review.`,
+          category: 'LEAVE',
+          priority: 'NORMAL',
+          linkUrl: '/leave-permission',
+          referenceId: `leave_sub_${data.id}`,
+        });
+      }
+
       setFeedback({ type: 'success', message: 'Leave application submitted for administrative review.' });
       setIsApplyLeaveOpen(false);
       setLeaveReason('');
@@ -206,6 +218,18 @@ export default function LeavePermissionPage() {
         entityId: data.id,
         newState: { date: permDate, from: permFromTime, to: permToTime, reason: permReason },
       });
+
+      if (profile?.id) {
+        await sendNotification({
+          userId: profile.id,
+          title: 'Permission Request Submitted',
+          message: `Your permission request for ${permDate} (${permFromTime} - ${permToTime}) has been submitted for review.`,
+          category: 'PERMISSION',
+          priority: 'NORMAL',
+          linkUrl: '/leave-permission',
+          referenceId: `perm_sub_${data.id}`,
+        });
+      }
 
       setFeedback({ type: 'success', message: 'Permission request submitted for administrative review.' });
       setIsApplyPermOpen(false);
@@ -274,6 +298,7 @@ export default function LeavePermissionPage() {
           category: selectedReqType === 'LEAVE' ? 'LEAVE' : 'PERMISSION',
           priority: decision === 'APPROVED' ? 'NORMAL' : 'HIGH',
           linkUrl: '/leave-permission',
+          referenceId: `rev_${selectedReqType}_${selectedRequest.id}_${decision}`,
         });
       }
 

@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { SunMedium, Plus, CheckCircle2, AlertCircle, MapPin, Calendar, FileText } from 'lucide-react';
 import { logAuditEvent } from '@/lib/audit';
+import { sendNotification } from '@/lib/notifications';
 
 export default function SummerActivityPage() {
   const { role, profile, student } = useAuth();
@@ -154,6 +155,22 @@ export default function SummerActivityPage() {
         entityId: selectedAct.id,
         newState: { status: decision },
       });
+
+      // Dispatch in-portal notification to student
+      const studentProfileId = selectedAct.student?.profile_id;
+      if (studentProfileId) {
+        await sendNotification({
+          userId: studentProfileId,
+          title: `Summer Activity Submission ${decision}`,
+          message: `Your summer activity titled "${selectedAct.title}" has been ${decision.toLowerCase()}.${
+            adminRemarks ? ` Remarks: ${adminRemarks}` : ''
+          }`,
+          category: 'ACTIVITY',
+          priority: decision === 'APPROVED' ? 'NORMAL' : 'HIGH',
+          linkUrl: '/summer-activity',
+          referenceId: `act_${selectedAct.id}_${decision}`,
+        });
+      }
 
       setReviewModalOpen(false);
       setSelectedAct(null);

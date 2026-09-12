@@ -49,7 +49,12 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className={`relative w-full ${maxWidthClass} bg-white rounded-xl shadow-2xl border border-[#CBD5E1] overflow-hidden z-10 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]`}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`relative w-full ${maxWidthClass} bg-white rounded-xl shadow-2xl border border-[#CBD5E1] overflow-hidden z-10 animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]`}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
           <div>

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { NotificationItem } from '@/types';
@@ -11,140 +12,149 @@ import { Modal } from '@/components/ui/Modal';
 import {
   Bell,
   CheckCircle2,
-  AlertCircle,
   Clock,
-  Plus,
-  Radio,
-  Send,
-  Calendar,
-  Award,
+  ExternalLink,
+  ChevronRight,
+  Shield,
+  Layers,
+  ArrowRight,
+  CheckCheck,
 } from 'lucide-react';
-import { logAuditEvent } from '@/lib/audit';
 
 export default function NotificationsPage() {
   const { role, profile } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  // Broadcast Modal (Admin)
-  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
-  const [broadcastTitle, setBroadcastTitle] = useState('');
-  const [broadcastMessage, setBroadcastMessage] = useState('');
-  const [broadcastCategory, setBroadcastCategory] = useState<'ANNOUNCEMENT' | 'ACADEMIC' | 'ATTENDANCE' | 'RENEWAL'>('ANNOUNCEMENT');
-  const [broadcastPriority, setBroadcastPriority] = useState<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL');
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // Detail Modal State
+  const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const supabase = createClient();
   const isAdmin = role === 'SUPER_ADMIN' || role === 'SEMI_ADMIN';
 
   useEffect(() => {
     loadNotifications();
-  }, [profile]);
+  }, [profile?.id]);
 
   async function loadNotifications() {
-    if (!profile) return;
+    if (!profile?.id) return;
     setIsLoading(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
 
+      if (error) throw error;
       if (data) setNotifications(data as any);
     } catch (err) {
-      console.error('Error loading notifications:', err);
+      console.error('Error loading user notifications:', err);
     } finally {
       setIsLoading(false);
     }
   }
 
-  const handleMarkAsRead = async (id: string) => {
-    try {
-      await supabase.from('notifications').update({ read: true }).eq('id', id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
-    } catch (err) {
-      console.error('Error marking as read:', err);
+  // Open notification detail modal & automatically mark as read
+  const handleOpenDetail = async (notif: NotificationItem) => {
+    setSelectedNotification(notif);
+    setIsDetailOpen(true);
+
+    if (!notif.read && profile?.id) {
+      try {
+        await supabase
+          .from('notifications')
+          .update({ read: true })
+          .eq('id', notif.id)
+          .eq('user_id', profile.id);
+
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+        );
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('ptf:notifications-updated'));
+        }
+      } catch (err) {
+        console.error('Error marking notification as read:', err);
+      }
     }
   };
 
+  // Mark all current user's notifications as read
   const handleMarkAllAsRead = async () => {
-    if (!profile) return;
+    if (!profile?.id) return;
+    setIsMarkingAll(true);
     try {
-      await supabase.from('notifications').update({ read: true }).eq('user_id', profile.id);
+      await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', profile.id)
+        .eq('read', false);
+
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ptf:notifications-updated'));
+      }
     } catch (err) {
       console.error('Error marking all as read:', err);
-    }
-  };
-
-  // Admin Broadcast Announcement
-  const handleBroadcast = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFeedback(null);
-    setIsBroadcasting(true);
-
-    try {
-      // 1. Get all active user profiles
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('is_active', true);
-
-      if (allProfiles && allProfiles.length > 0) {
-        const notifPayload = allProfiles.map((p) => ({
-          user_id: p.id,
-          title: broadcastTitle,
-          message: broadcastMessage,
-          category: broadcastCategory,
-          priority: broadcastPriority,
-          read: false,
-        }));
-
-        await supabase.from('notifications').insert(notifPayload);
-      }
-
-      await logAuditEvent({
-        actorId: profile?.id,
-        action: 'BROADCAST_NOTIFICATION',
-        entity: 'notifications',
-        newState: { title: broadcastTitle, category: broadcastCategory },
-      });
-
-      setFeedback({ type: 'success', message: 'Broadcast announcement sent to all scholars & faculty.' });
-      setBroadcastModalOpen(false);
-      setBroadcastTitle('');
-      setBroadcastMessage('');
-      loadNotifications();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Broadcast failed.' });
     } finally {
-      setIsBroadcasting(false);
+      setIsMarkingAll(false);
     }
   };
 
-  const filteredNotifications = notifications.filter((n) => {
-    if (filterCategory === 'ALL') return true;
-    if (filterCategory === 'UNREAD') return !n.read;
-    return n.category === filterCategory;
-  });
+  // Clean link URL (strip internal tracking params if any)
+  const getActionLink = (linkUrl?: string | null) => {
+    if (!linkUrl) return null;
+    const clean = linkUrl.split('?')[0].split('#')[0];
+    if (clean === '/notifications' || clean === '') return null;
+    return linkUrl;
+  };
+
+  // Map category to user friendly badge
+  const formatCategoryBadge = (cat?: string) => {
+    if (!cat) return 'GENERAL';
+    const upper = cat.toUpperCase();
+    if (upper === 'RENEWAL') return 'SCHOLARSHIP';
+    if (upper === 'ACTIVITY') return 'SUMMER ACTIVITY';
+    if (upper === 'CT_MARKS') return 'ACADEMIC';
+    return upper;
+  };
+
+  // Filtered Notifications
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      if (filterCategory === 'ALL') return true;
+      if (filterCategory === 'UNREAD') return !n.read;
+      const mapped = formatCategoryBadge(n.category);
+      return mapped === filterCategory || n.category === filterCategory;
+    });
+  }, [notifications, filterCategory]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E2E8F0] pb-5">
         <div>
           <span className="text-xs font-bold uppercase tracking-widest text-[#D4AF37]">
-            COMMUNICATIONS
+            COMMUNICATIONS FEED
           </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-[#0A192F] mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#0A192F] mt-0.5 flex items-center gap-2">
             Notification Center
-          </h2>
+            {unreadCount > 0 && (
+              <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-[#E11D48] text-white">
+                {unreadCount} new
+              </span>
+            )}
+          </h1>
           <p className="text-xs text-[#64748B] mt-1">
-            Foundation announcements, academic deadlines, CT updates, and attendance alerts.
+            Official announcements, academic decisions, leave statuses, and attendance notices.
           </p>
         </div>
 
@@ -152,217 +162,229 @@ export default function NotificationsPage() {
           <Button
             variant="outline"
             size="sm"
+            id="mark-all-read-btn"
+            leftIcon={<CheckCheck className="w-4 h-4 text-[#10B981]" />}
             onClick={handleMarkAllAsRead}
-            disabled={notifications.length === 0}
+            disabled={unreadCount === 0 || isMarkingAll}
+            isLoading={isMarkingAll}
           >
-            Mark All as Read
+            Mark all as read
           </Button>
 
           {isAdmin && (
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Radio className="w-4 h-4 text-[#D4AF37]" />}
-              onClick={() => setBroadcastModalOpen(true)}
-            >
-              Broadcast Notice
-            </Button>
+            <Link href="/admin/notifications">
+              <Button
+                variant="primary"
+                size="sm"
+                id="open-admin-notification-center-btn"
+                leftIcon={<Shield className="w-4 h-4 text-[#D4AF37]" />}
+              >
+                Notification Center Admin →
+              </Button>
+            </Link>
           )}
         </div>
       </div>
 
-      {feedback && (
-        <div
-          className={`p-4 rounded-xl text-xs flex items-center gap-3 border ${
-            feedback.type === 'success'
-              ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]'
-              : 'bg-[#FFF1F2] border-[#FECDD3] text-[#9F1239]'
-          }`}
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 shrink-0 text-[#10B981]" />
-          ) : (
-            <AlertCircle className="w-5 h-5 shrink-0 text-[#E11D48]" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
-
-      {/* Filter Chips */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#E2E8F0] pb-3 text-xs">
-        {['ALL', 'UNREAD', 'ACADEMIC', 'ATTENDANCE', 'LEAVE', 'RENEWAL', 'ANNOUNCEMENT'].map(
-          (cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilterCategory(cat)}
-              className={`px-3 py-1.5 rounded-full font-bold transition-colors ${
-                filterCategory === cat
-                  ? 'bg-[#0A192F] text-white'
-                  : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'
-              }`}
-            >
-              {cat}
-            </button>
-          )
-        )}
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-[#E2E8F0] pb-3 text-xs">
+        {[
+          { label: 'All', val: 'ALL' },
+          { label: `Unread (${unreadCount})`, val: 'UNREAD' },
+          { label: 'Announcements', val: 'ANNOUNCEMENT' },
+          { label: 'Academics', val: 'ACADEMIC' },
+          { label: 'Attendance', val: 'ATTENDANCE' },
+          { label: 'Leave', val: 'LEAVE' },
+          { label: 'Permission', val: 'PERMISSION' },
+          { label: 'Scholarship', val: 'SCHOLARSHIP' },
+          { label: 'Summer Activity', val: 'SUMMER ACTIVITY' },
+        ].map((f) => (
+          <button
+            key={f.val}
+            onClick={() => setFilterCategory(f.val)}
+            className={`px-3 py-1.5 rounded-full font-bold transition-all ${
+              filterCategory === f.val
+                ? 'bg-[#0A192F] text-white shadow-xs'
+                : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Notifications List */}
-      <div className="institutional-card p-6">
-        {filteredNotifications.length === 0 ? (
-          <EmptyState
-            title="No Notifications Found"
-            description="You're all caught up! When official announcements or academic updates are posted, they will appear here."
-          />
+      <div className="institutional-card overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center text-xs text-[#64748B]">
+            <Clock className="w-6 h-6 mx-auto mb-2 text-[#D4AF37] animate-spin" />
+            Loading your notifications...
+          </div>
+        ) : filteredNotifications.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              title={filterCategory === 'UNREAD' ? 'No Unread Notifications' : 'No Notifications Found'}
+              description={
+                filterCategory === 'UNREAD'
+                  ? "You have read all incoming notifications. You're all caught up!"
+                  : 'Official announcements and institutional updates will appear here.'
+              }
+            />
+          </div>
         ) : (
           <div className="divide-y divide-[#E2E8F0]">
-            {filteredNotifications.map((notif) => (
-              <div
-                key={notif.id}
-                className={`py-4 flex items-start justify-between gap-4 transition-colors ${
-                  !notif.read ? 'bg-[#F8FAFC] -mx-4 px-4 rounded-lg' : ''
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${
-                      !notif.read ? 'bg-[#D4AF37]' : 'bg-transparent'
-                    }`}
-                  />
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-[#0A192F]">
-                        {notif.title}
-                      </span>
-                      <Badge
-                        variant={
-                          notif.priority === 'HIGH' || notif.priority === 'URGENT'
-                            ? 'error'
-                            : 'neutral'
-                        }
-                        size="sm"
-                      >
-                        {notif.category}
-                      </Badge>
+            {filteredNotifications.map((notif) => {
+              const isUnread = !notif.read;
+              const formattedDate = new Date(notif.created_at).toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              return (
+                <div
+                  key={notif.id}
+                  id={`notification-row-${notif.id}`}
+                  onClick={() => handleOpenDetail(notif)}
+                  className={`p-4 sm:p-5 flex items-start justify-between gap-4 cursor-pointer transition-all ${
+                    isUnread
+                      ? 'bg-[#FEFCE8]/40 hover:bg-[#FEFCE8]/70 border-l-4 border-[#D4AF37]'
+                      : 'hover:bg-[#F8FAFC]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    {/* Read / Unread Visual Indicator */}
+                    <div className="pt-0.5 shrink-0">
+                      {isUnread ? (
+                        <span
+                          className="inline-block w-3 h-3 rounded-full bg-[#D4AF37] shadow-xs"
+                          title="Unread notification"
+                        >
+                          <span className="sr-only">●</span>
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-block w-3 h-3 rounded-full border-2 border-[#CBD5E1]"
+                          title="Read notification"
+                        >
+                          <span className="sr-only">○</span>
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-[#475569] leading-relaxed">
-                      {notif.message}
-                    </p>
-                    <span className="text-[10px] text-[#94A3B8] mt-1 block">
-                      {new Date(notif.created_at).toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
+
+                    <div className="min-w-0">
+                      {/* Top Meta Line: Title + Badges */}
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span
+                          className={`text-xs sm:text-sm truncate ${
+                            isUnread ? 'font-extrabold text-[#0A192F]' : 'font-semibold text-[#334155]'
+                          }`}
+                        >
+                          {notif.title}
+                        </span>
+
+                        <Badge variant="neutral" size="sm">
+                          {formatCategoryBadge(notif.category)}
+                        </Badge>
+
+                        {(notif.priority === 'HIGH' || notif.priority === 'URGENT') && (
+                          <Badge
+                            variant={notif.priority === 'URGENT' ? 'error' : 'warning'}
+                            size="sm"
+                          >
+                            {notif.priority}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Message Preview */}
+                      <p
+                        className={`text-xs line-clamp-2 leading-relaxed ${
+                          isUnread ? 'text-[#1E293B] font-medium' : 'text-[#64748B]'
+                        }`}
+                      >
+                        {notif.message}
+                      </p>
+
+                      {/* Timestamp */}
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-[#94A3B8]">
+                        <Clock className="w-3 h-3" />
+                        <span>{formattedDate}</span>
+                        <span>•</span>
+                        <span>Puthiya Thalaimurai Foundation</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-center">
+                    <ChevronRight className="w-4 h-4 text-[#94A3B8]" />
                   </div>
                 </div>
-
-                {!notif.read && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleMarkAsRead(notif.id)}
-                  >
-                    Mark Read
-                  </Button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Broadcast Announcement Modal */}
+      {/* NOTIFICATION DETAIL MODAL */}
       <Modal
-        isOpen={broadcastModalOpen}
-        onClose={() => setBroadcastModalOpen(false)}
-        title="Broadcast Institutional Announcement"
-        subtitle="Dispatch notification to all foundation fellows & faculty"
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        title={selectedNotification?.title || 'Notice Details'}
+        subtitle={
+          selectedNotification
+            ? `${formatCategoryBadge(selectedNotification.category)} • Priority: ${
+                selectedNotification.priority || 'NORMAL'
+              }`
+            : ''
+        }
       >
-        <form onSubmit={handleBroadcast} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-[#0A192F] uppercase mb-1">
-              Notice Title
-            </label>
-            <input
-              type="text"
-              required
-              value={broadcastTitle}
-              onChange={(e) => setBroadcastTitle(e.target.value)}
-              placeholder="e.g. Mandatory Biometric Compliance for Kalam Sessions"
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs font-semibold text-[#0A192F]"
-            />
-          </div>
+        {selectedNotification && (
+          <div className="space-y-4">
+            <div className="p-4 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E2E8F0] text-[#64748B]">
+                <span>
+                  Sender: <strong className="text-[#0A192F]">Puthiya Thalaimurai Foundation</strong>
+                </span>
+                <span>
+                  {new Date(selectedNotification.created_at).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-[#0A192F] uppercase mb-1">
-                Category
-              </label>
-              <select
-                value={broadcastCategory}
-                onChange={(e) => setBroadcastCategory(e.target.value as any)}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs text-[#0A192F]"
-              >
-                <option value="ANNOUNCEMENT">General Announcement</option>
-                <option value="ACADEMIC">Academic / CT Marks</option>
-                <option value="ATTENDANCE">Abdul Kalam Attendance</option>
-                <option value="RENEWAL">Scholarship Renewal</option>
-              </select>
+              <div>
+                <p className="text-xs sm:text-sm text-[#0A192F] font-semibold leading-relaxed whitespace-pre-wrap">
+                  {selectedNotification.message}
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-[#0A192F] uppercase mb-1">
-                Priority
-              </label>
-              <select
-                value={broadcastPriority}
-                onChange={(e) => setBroadcastPriority(e.target.value as any)}
-                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs text-[#0A192F]"
-              >
-                <option value="NORMAL">Normal Priority</option>
-                <option value="HIGH">High Priority</option>
-                <option value="URGENT">Urgent Alert</option>
-              </select>
+            <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0]">
+              {getActionLink(selectedNotification.link_url) ? (
+                <Link
+                  href={getActionLink(selectedNotification.link_url)!}
+                  onClick={() => setIsDetailOpen(false)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0A192F] hover:text-[#D4AF37] transition-colors"
+                >
+                  Go to Related Section <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <div />
+              )}
+
+              <Button variant="primary" size="md" onClick={() => setIsDetailOpen(false)}>
+                Close Notice
+              </Button>
             </div>
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[#0A192F] uppercase mb-1">
-              Announcement Message
-            </label>
-            <textarea
-              rows={4}
-              required
-              value={broadcastMessage}
-              onChange={(e) => setBroadcastMessage(e.target.value)}
-              placeholder="Enter announcement text..."
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs text-[#0A192F]"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E2E8F0]">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => setBroadcastModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              isLoading={isBroadcasting}
-              leftIcon={<Send className="w-3.5 h-3.5 text-[#D4AF37]" />}
-            >
-              Send Broadcast
-            </Button>
-          </div>
-        </form>
+        )}
       </Modal>
     </div>
   );
