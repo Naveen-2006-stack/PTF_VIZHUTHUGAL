@@ -1,9 +1,6 @@
 name: Playwright Tests
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab only, preventing automatic test runs on push
 jobs:
   test:
     timeout-minutes: 60
