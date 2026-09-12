@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="100%" fill="none">
+  <g transform="translate(8, 8)">
+    <!-- SRMIST Seal BAB -->
+    <circle cx="32" cy="32" r="30" fill="#0A192F" stroke="#D4AF37" stroke-width="2" />
+    <polygon points="32,12 40,26 24,26" fill="#D4AF37" />
+    <circle cx="32" cy="34" r="9" fill="#1E3E62" stroke="#FFFFFF" stroke-width="1.5" />
+    <path d="M20 48 Q32 44 44 48" stroke="#D4AF37" stroke-width="2" fill="none" />
+  </g>
+  <text x="80" y="30" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="16" fill="#0A192F" letter-spacing="0.5">SRM INSTITUTE OF SCIENCE &amp; TECH</text>
+  <text x="80" y="48" font-family="'Plus Jakarta Sans', sans-serif" font-weight="700" font-size="13" fill="#D4AF37" letter-spacing="1">BABUSAHEBPET (BAB)</text>
+  <text x="80" y="64" font-family="'Inter', sans-serif" font-weight="600" font-size="10" fill="#64748B">Tamil Nadu Campus | Capacity: 27</text>
+</svg>

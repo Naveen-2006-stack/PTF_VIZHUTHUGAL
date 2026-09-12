@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="100%" height="100%" fill="none">
+  <g transform="translate(8, 8)">
+    <!-- SRM AP Seal -->
+    <rect x="4" y="4" width="56" height="56" rx="10" fill="#0A192F" stroke="#D4AF37" stroke-width="2" />
+    <path d="M16 48 L32 16 L48 48 Z" fill="none" stroke="#D4AF37" stroke-width="2.5" />
+    <circle cx="32" cy="34" r="5" fill="#E8A020" />
+    <line x1="22" y1="38" x2="42" y2="38" stroke="#D4AF37" stroke-width="2" />
+  </g>
+  <text x="80" y="30" font-family="'Plus Jakarta Sans', sans-serif" font-weight="800" font-size="16" fill="#0A192F" letter-spacing="0.5">SRM UNIVERSITY</text>
+  <text x="80" y="48" font-family="'Plus Jakarta Sans', sans-serif" font-weight="700" font-size="13" fill="#D4AF37" letter-spacing="1">ANDHRA PRADESH (AP)</text>
+  <text x="80" y="64" font-family="'Inter', sans-serif" font-weight="600" font-size="10" fill="#64748B">Amaravati Campus | Capacity: 24</text>
+</svg>

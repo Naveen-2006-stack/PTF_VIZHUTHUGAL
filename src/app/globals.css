@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --ptf-navy: #0A192F;
+    --ptf-navy-dark: #07101E;
+    --ptf-navy-light: #1E293B;
+    --ptf-navy-surface: #0E2038;
+    --ptf-gold: #D4AF37;
+    --ptf-gold-light: #FDF4DC;
+    --ptf-gold-dark: #B89726;
+    --ptf-slate: #F8FAFC;
+    --ptf-slate-alt: #F1F5F9;
+    --ptf-border: #E2E8F0;
+    --ptf-border-hover: #CBD5E1;
+    --ptf-emerald: #10B981;
+    --ptf-crimson: #E11D48;
+    --ptf-amber: #F59E0B;
+  }
+
+  body {
+    background-color: #F8FAFC;
+    color: #1E293B;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Institutional Custom Utility Classes */
+.bg-ptf-navy { background-color: var(--ptf-navy); }
+.bg-ptf-navy-dark { background-color: var(--ptf-navy-dark); }
+.bg-ptf-navy-light { background-color: var(--ptf-navy-light); }
+.bg-ptf-navy-surface { background-color: var(--ptf-navy-surface); }
+.bg-ptf-gold { background-color: var(--ptf-gold); }
+.bg-ptf-gold-light { background-color: var(--ptf-gold-light); }
+.bg-ptf-slate { background-color: var(--ptf-slate); }
+.bg-ptf-slate-alt { background-color: var(--ptf-slate-alt); }
+
+.text-ptf-navy { color: var(--ptf-navy); }
+.text-ptf-gold { color: var(--ptf-gold); }
+.text-ptf-gold-dark { color: var(--ptf-gold-dark); }
+.text-ptf-emerald { color: var(--ptf-emerald); }
+.text-ptf-crimson { color: var(--ptf-crimson); }
+.text-ptf-amber { color: var(--ptf-amber); }
+
+.border-ptf-gold { border-color: var(--ptf-gold); }
+.border-ptf-border { border-color: var(--ptf-border); }
+.border-ptf-navy { border-color: var(--ptf-navy); }
+
+/* Institutional Card Shadows & Outlines */
+.institutional-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02);
+  transition: all 0.2s ease-in-out;
+}
+
+.institutional-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 6px -1px rgba(10, 25, 47, 0.06), 0 2px 4px -2px rgba(10, 25, 47, 0.03);
+}
+
+.gold-accent-top {
+  border-top: 3px solid #D4AF37;
+}
+
+/* Custom Scrollbar for Dense Tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}

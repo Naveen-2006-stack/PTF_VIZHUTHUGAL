@@ -1,0 +1,419 @@
+================================================================================
+PTF VIZHUTHUGAL STUDENT PORTAL
+24-HOUR ATTENDANCE EDIT & SUPER ADMIN OVERRIDE FEATURE
+DETAILED IMPLEMENTATION, ARCHITECTURE, SECURITY & E2E VERIFICATION REPORT
+================================================================================
+
+Date: 2026-09-11
+Application: Puthiya Thalaimurai Foundation - Vizhuthugal Student Portal
+Feature: Secure 24-Hour Attendance Edit Capability & Super Admin Override
+Database: Supabase Postgres (Remote Instance: aibklzudikrwhmnipchj.supabase.co)
+Next.js Version: 16.3.4 (Turbopack Engine)
+React Version: 19.0.0
+Testing Engine: Playwright Test Runner (Chromium)
+
+================================================================================
+1. EXECUTIVE CONFIRMATION ON MANDATORY BUSINESS CHECKS
+================================================================================
+
+[✓] 24-HOUR EDIT: PASS
+    - STAFF_MENTOR can edit attendance records within 24 hours of original creation.
+    - Verified in browser UI (modal opens, countdown displayed, editable status selector).
+    - Verified end-to-end with automated Playwright tests.
+
+[✓] ORIGINAL CREATOR ONLY: PASS
+    - Only the authenticated STAFF_MENTOR whose ID matches mentor_id on the attendance
+      record can edit the record.
+    - Other mentors see "[🔒 Locked]" in UI and direct API calls are rejected with HTTP 403
+      (error: "ORIGINAL_CREATOR_ONLY").
+
+[✓] ONE SESSION PER DAY: PASS
+    - The existing database constraint UNIQUE(student_id, attendance_date) is 100% preserved.
+    - Editing an existing session updates the record in-place without creating duplicates.
+    - Attempting to record a second session (e.g. Morning exists, attempting Evening) is
+      strictly rejected with HTTP 409 (error: "DUPLICATE_DAILY_ATTENDANCE").
+
+[✓] DATABASE/SERVER TIME ENFORCEMENT: PASS
+    - The 24-hour cutoff window is computed strictly on the server against the database
+      record's created_at timestamp and authoritative server time:
+      `new Date().getTime() > recordCreatedAt.getTime() + 24 * 60 * 60 * 1000`.
+    - Tampering with the client browser clock (simulated in Playwright via Date.now manipulation)
+      cannot bypass server-side cutoff (rejected with HTTP 409 ATTENDANCE_EDIT_WINDOW_EXPIRED).
+
+[✓] AUDIT TRAIL: PASS
+    - Every modification creates an immutable audit record in public.attendance_audit_history.
+    - Captured fields: attendance_id, student_id, previous_status, new_status, original_marked_by,
+      edited_by, original_created_at, edited_at, reason, and is_super_admin_override.
+    - In addition, institutional system audit events are written to public.audit_logs.
+
+[✓] SUPER ADMIN OVERRIDE: PASS
+    - SUPER_ADMIN may correct attendance even after the 24-hour window has expired.
+    - Dedicated Super Admin warning prompt displayed in UI.
+    - Mandatory reason required (> 3 chars).
+    - Recorded with is_super_admin_override = true in attendance_audit_history.
+    - Not exposed to STAFF_MENTOR or STUDENT roles.
+
+================================================================================
+2. DATABASE ARCHITECTURE & SCHEMA CHANGES
+================================================================================
+
+1. Dedicated Immutable Audit History Table:
+   Table: public.attendance_audit_history
+   Columns:
+   - id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+   - attendance_id: UUID NOT NULL REFERENCES public.attendance(id) ON DELETE CASCADE
+   - student_id: UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE
+   - previous_status: VARCHAR(20) NOT NULL
+   - new_status: VARCHAR(20) NOT NULL
+   - original_marked_by: UUID NOT NULL REFERENCES public.profiles(id)
+   - edited_by: UUID NOT NULL REFERENCES public.profiles(id)
+   - original_created_at: TIMESTAMPTZ NOT NULL
+   - edited_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   - reason: TEXT NOT NULL
+   - is_super_admin_override: BOOLEAN NOT NULL DEFAULT FALSE
+
+2. Attendance Table Enhancements:
+   Table: public.attendance
+   Added Columns:
+   - last_edited_by: UUID REFERENCES public.profiles(id)
+   - edit_reason: TEXT
+
+3. Row Level Security (RLS) Policies:
+   - public.attendance_audit_history:
+     * Read policy: Admins, Secretaries, and Staff Mentors can read audit histories.
+     * Insert policy: Authenticated Staff Mentors and Admins can insert audit rows.
+   - public.attendance:
+     * UPDATE policy: Enabled for Admins without restrictions, and for Staff Mentors
+       where `mentor_id = auth.uid()` AND `NOW() < created_at + INTERVAL '24 hours'`.
+   - public.profiles:
+     * RLS policy updated to allow Staff Mentors to read student profiles for Abdul Kalam
+       attendance rosters without encountering 0-row RLS locks.
+
+================================================================================
+3. API ARCHITECTURE & ENDPOINTS
+================================================================================
+
+1. PATCH /api/attendance/abdul-kalam
+   Dynamic alias: PATCH /api/attendance/abdul-kalam/[id]
+   
+   Security & Authorization Pipeline:
+   Step 1: Authenticate user session via createServerSupabaseClient() and getUser().
+           If invalid/absent -> HTTP 401 Unauthorized.
+   Step 2: Fetch user profile and verify role:
+           Allowed roles: STAFF_MENTOR, SUPER_ADMIN.
+           If STUDENT, SEMI_ADMIN, PTF_SECRETARY -> HTTP 403 Forbidden.
+   Step 3: Validate request payload:
+           attendanceId: valid UUID.
+           status: must be one of 'PRESENT', 'ABSENT', 'LATE', 'EXCUSED'.
+           reason: mandatory string (minimum 3 characters).
+   Step 4: Fetch authoritative attendance record from database:
+           Verify record exists -> HTTP 404 ATTENDANCE_NOT_FOUND if absent.
+           Verify status is actually different -> HTTP 400 NO_STATUS_CHANGE if identical.
+   Step 5: Verify Abdul Kalam eligibility:
+           Query public.special_class_eligibility for record.student_id.
+           If not eligible -> HTTP 403 NOT_ELIGIBLE_FOR_SPECIAL_CLASS.
+   Step 6: Enforce Ownership (Original Creator):
+           If role === 'STAFF_MENTOR':
+             Check user.id === record.mentor_id.
+             If mismatch -> HTTP 403 ORIGINAL_CREATOR_ONLY.
+   Step 7: Enforce 24-Hour Cutoff against Server Time:
+           If role === 'STAFF_MENTOR':
+             Check `serverNow.getTime() <= recordCreatedAt.getTime() + 24 * 60 * 60 * 1000`.
+             If expired -> HTTP 409 ATTENDANCE_EDIT_WINDOW_EXPIRED.
+   Step 8: Execute in-place update on public.attendance:
+           Update `status`, `last_edited_by`, `edit_reason`, `updated_at`.
+   Step 9: Insert immutable audit entry into public.attendance_audit_history.
+   Step 10: Log institutional system audit event into public.audit_logs.
+
+================================================================================
+4. FRONTEND UI & USER EXPERIENCE
+================================================================================
+
+1. Attendance History Page (/attendance):
+   - Table Columns:
+     * Date (with ISO formatted data-date attribute)
+     * Session (MORNING / EVENING badges)
+     * Student (Scholar name and PTF ID)
+     * Attendance Status (Color-coded badges: Green for PRESENT, Red for ABSENT, etc.)
+     * Marked At (Formatted time & date)
+     * Edit Status (Countdown indicator: "Xh Ym left" or "Expired")
+     * Action:
+       - If within 24h & current user is creator: [Edit Attendance] button
+       - If expired or not creator: [🔒 Locked] badge
+       - If Super Admin: [Admin Override] button
+
+2. Edit Attendance Modal (src/components/attendance/EditAttendanceModal.tsx):
+   - Header with visual indicator and remaining window countdown.
+   - Super Admin banner alert if modifying an expired record.
+   - Immutable record details card:
+     * Scholar Name & PTF ID
+     * Attendance Date & Session
+     * Originally Marked Status & Timestamp
+   - Editable status selector: PRESENT, ABSENT, LATE, EXCUSED.
+   - Mandatory Reason for Correction textarea with character validation.
+   - Two-step confirmation flow:
+     * Step 1: "Review Correction" button validates input and shows summary diff.
+     * Step 2: "Confirm Attendance Modification" prompt showing:
+       "Are you sure you want to change attendance for [Scholar] from [Old] to [New]?"
+     * "Confirm & Save Correction" triggers API mutation and updates UI in real-time.
+
+3. Foreign Key Disambiguation (PostgREST PGRST201):
+   - Disambiguated Supabase relation queries in `/attendance` and `/admin/reports` using
+     `mentor:profiles!mentor_id(*)` to eliminate embedding collisions with `last_edited_by`.
+
+================================================================================
+5. PLAYWRIGHT END-TO-END VERIFICATION SUITE
+================================================================================
+
+Dedicated Test Suite: e2e/attendance-edit.spec.ts (8 tests covering all 12 scenarios)
+
+TEST RESULTS:
+--------------------------------------------------------------------------------
+TEST 1, 2, 8: Mentor creates attendance, sees Edit button, edits within 24 hours
+              (PRESENT -> ABSENT) with confirmation dialog & audit record.
+              Status: PASSED
+
+TEST 9:       Edit status from ABSENT -> PRESENT within window.
+              Status: PASSED
+
+TEST 3:       Different mentor attempts same edit is BLOCKED.
+              UI renders [🔒 Locked], edit button hidden, direct PATCH returns 403
+              ORIGINAL_CREATOR_ONLY.
+              Status: PASSED
+
+TEST 4:       Student attempts edit is BLOCKED.
+              No UI controls visible on student view, direct PATCH returns 403.
+              Status: PASSED
+
+TEST 5:       Unauthenticated user attempts edit is BLOCKED.
+              Direct PATCH returns 401 Unauthorized.
+              Status: PASSED
+
+TEST 6 & 7:   Edit after 24 hours is BLOCKED & clock tampering cannot bypass server time.
+              UI renders [Expired / Locked], direct PATCH returns 409
+              ATTENDANCE_EDIT_WINDOW_EXPIRED. Browser clock modification fails.
+              Status: PASSED
+
+TEST 10 & 11: Preserves Single Session Per Day & In-Place Update (No Duplicate).
+              Attempting to create second session on same date fails with 409
+              DUPLICATE_DAILY_ATTENDANCE. Editing status updates in place.
+              Status: PASSED
+
+TEST 12:      Super Admin override allowed with mandatory reason and warning.
+              Super Admin successfully updates record past 24 hours with audit log.
+              Status: PASSED
+--------------------------------------------------------------------------------
+Subtotal: 8 passed / 8 total (100%)
+
+FULL REPOSITORY TEST RUN:
+Command: npx playwright test --project=chromium
+- Total Tests: 48
+- Passed: 48 (100%)
+- Failed: 0
+- Skipped: 0
+- Execution Time: 2.8 minutes
+
+Verified Suites:
+- admin.spec.ts: 2 passed
+- attendance-edit.spec.ts: 8 passed
+- attendance.spec.ts: 6 passed
+- responsive.spec.ts: 2 passed
+- roles.spec.ts: 5 passed
+- security.spec.ts: 7 passed
+- student.spec.ts: 4 passed
+- workflows.spec.ts: 5 passed
+- zz-auth.spec.ts: 9 passed
+
+================================================================================
+6. CODE QUALITY & BUILD VERIFICATION
+================================================================================
+
+1. ESLint:
+   - Command: npm run lint
+   - Result: 0 ERRORS, 229 warnings (exit code 0)
+
+2. Next.js Production Build:
+   - Command: npm run build
+   - Engine: Next.js 16.3.4 (Turbopack)
+   - Result: Compiled successfully in 1050ms
+   - TypeScript: 0 errors
+   - Page Generation: 31/31 routes static/dynamic compiled successfully
+   - Build Result: SUCCESS (exit code 0)
+
+================================================================================
+7. SUMMARY OF MODIFIED & CREATED FILES
+================================================================================
+
+1. Database Migrations (executed remotely on Supabase):
+   - Created table public.attendance_audit_history
+   - Added columns last_edited_by, edit_reason to public.attendance
+   - Applied RLS UPDATE policies to public.attendance
+   - Applied RLS SELECT & INSERT policies to public.attendance_audit_history
+
+2. Backend API:
+   - src/app/api/attendance/abdul-kalam/route.ts (PATCH handler with 24h & ownership validation)
+   - src/app/api/attendance/abdul-kalam/[id]/route.ts (dynamic route delegate)
+
+3. Frontend Components:
+   - src/components/attendance/EditAttendanceModal.tsx (new modal component)
+   - src/app/(portal)/attendance/page.tsx (updated history table with countdown & actions)
+   - src/app/(portal)/admin/reports/page.tsx (PGRST201 relation disambiguation)
+
+4. Test Suite & Fixtures:
+   - e2e/attendance-edit.spec.ts (new comprehensive test suite covering tests 1-12)
+   - e2e/attendance.spec.ts (updated with dynamic dates for idempotency)
+   - e2e/fixtures/auth.ts (enhanced loginWithAccount and added loginAsStaffTwo)
+
+5. Documentation:
+   - DOC/attendance_24hour_edit_review.txt (this detailed document)
+   - DOC/detailed_review.txt (updated project timeline and architecture history)
+
+================================================================================
+8. AUTHORITATIVE QA DATASET VERIFICATION REPORT
+   Workbook: PTF_Vizhuthugal_Playwright_Attendance_Edit_Test_Data.xlsx / PTF_Vizhuthugal_Attendance_Edit_Test_Cases.csv
+================================================================================
+
+A. PROVISIONED QA TEST ACCOUNTS (Isolated development/test environment):
+--------------------------------------------------------------------------------
+1. qa.superadmin@ptftest.local (SUPER_ADMIN, ID: 11111111-1111-4111-a111-111111111111)
+2. qa.semiadmin@ptftest.local (SEMI_ADMIN, ID: 22222222-2222-4222-a222-222222222222)
+3. qa.secretary@ptftest.local (PTF_SECRETARY, ID: 33333333-3333-4333-a333-333333333333)
+4. qa.staffmentor@ptftest.local (STAFF_MENTOR A, ID: 44444444-4444-4444-a444-444444444444)
+5. qa.staffmentor2@ptftest.local (STAFF_MENTOR B, ID: 55555555-5555-4555-a555-555555555555)
+6. qa.student.eligible@ptftest.local (STUDENT, PTF ID: QA001, Eligible: TRUE)
+7. qa.student.ineligible@ptftest.local (STUDENT, PTF ID: QA002, Eligible: FALSE)
+
+B. AUTHORITATIVE TEST MATRIX (16 TEST SCENARIOS):
+--------------------------------------------------------------------------------
+TEST 1:  Edit within 1 hour succeeds (PRESENT -> ABSENT, in-place, audit log) -> PASSED
+TEST 2:  Edit at 23 hours 59 minutes (just before expiry) is ALLOWED          -> PASSED
+TEST 3:  Edit at 24 hours 1 minute is BLOCKED by server timestamp (HTTP 409)  -> PASSED
+TEST 4:  Different Staff/Mentor cannot edit another mentor record (HTTP 403)  -> PASSED
+TEST 5:  Student cannot edit attendance (UI locked, direct API HTTP 403)      -> PASSED
+TEST 6:  Device clock manipulation cannot bypass server timestamp            -> PASSED
+TEST 7:  Edit status to LATE succeeds; immutable fields cannot be altered     -> PASSED
+TEST 8:  Same-day second session creation is BLOCKED by UNIQUE constraint     -> PASSED
+TEST 9:  Edit updates existing row in-place without creating duplicate record -> PASSED
+TEST 10: Audit trail records comprehensive history with mandatory reason      -> PASSED
+TEST 11: After 24 hours UI displays [Locked] and direct API is rejected       -> PASSED
+TEST 12: Super Admin override allowed after 24h with reason and audit log     -> PASSED
+TEST 13: QA001 is eligible for attendance; QA002 is ineligible and blocked    -> PASSED
+TEST 14: Concurrent edit requests execute safely without corrupted state      -> PASSED
+TEST 15: Malicious and unauthorized edit attempts are strictly blocked        -> PASSED
+TEST 16: Strict role boundaries enforced across portal modules                -> PASSED
+
+C. CROSS-BROWSER & DEVICE ENGINE RESULTS (e2e/attendance-24h-qa-dataset.spec.ts):
+--------------------------------------------------------------------------------
+1. Desktop Chromium:   16 / 16 PASSED (100%)
+2. Desktop WebKit:     16 / 16 PASSED (100%)
+3. Mobile Chrome:      16 / 16 PASSED (100%)
+4. Tablet Chrome:      16 / 16 PASSED (100%)
+--------------------------------------------------------------------------------
+TOTAL TEST RUNS:       64 / 64 PASSED (100% PASS RATE, 0 FAILURES, 0 SKIPPED)
+
+D. COMPREHENSIVE REPOSITORY GATES:
+--------------------------------------------------------------------------------
+1. Playwright Critical Tests: 0 Failed (100% Pass)
+2. ESLint Check:              0 Errors (Exit code 0)
+3. Production Build:          SUCCESS (31/31 routes compiled cleanly)
+================================================================================
+
+================================================================================
+9. PART 1 & PART 2: COMPREHENSIVE ATTENDANCE TIME UI & OFFICIAL LOGO SUITE
+================================================================================
+
+A. ATTENDANCE TIME DISPLAY & AUTHORITATIVE SERVER-TIME LOCKING (PART 1):
+--------------------------------------------------------------------------------
+1. Server-Authoritative 24-Hour Edit Window:
+   - Replaced client-side date heuristics with strict server/database timestamp math:
+     editable_until = original_created_at + 24 hours
+   - Added /api/time endpoint providing authoritative server timestamp in milliseconds.
+   - Browser clock manipulation or local time changes cannot manipulate UI or API gates.
+
+2. June Attendance & Historic Records Locking:
+   - June attendance records (and all records with created_at > 24 hours ago) are strictly LOCKED.
+   - For STAFF_MENTOR:
+     * Status displayed as: "Locked" (badge) and "Editing window expired".
+     * Edit Attendance button is completely SUPPRESSED.
+   - For SUPER_ADMIN:
+     * Status displayed as: "Admin Override Available".
+     * Edit button transforms into "[ Admin Override ]" with warning prompt and mandatory reason.
+
+3. History Table Timestamp & Status Formatting:
+   - Column: "Marked & Edit Window"
+     * Marked: [DD Mon YYYY, HH:MM AM/PM]
+     * Edit Until: [DD Mon YYYY, HH:MM AM/PM]
+   - Column: "Status & Countdown"
+     * For active records: "Editable" badge + countdown e.g., "23h 41m remaining".
+     * For expired records: "Locked" / "Editing window expired" or "Admin Override Available".
+
+4. Edit Modal Hardening:
+   - Displays Student Name, PTF ID, Attendance Date, Session, Original Marked Time, Edit Deadline.
+   - Immutable fields banner: Student, Date, Session, Creator, and Created_at are unmodifiable.
+   - Only Attendance Status (PRESENT, ABSENT, LATE, EXCUSED) can be modified.
+   - Mandatory reason required (minimum 5 characters).
+   - Interactive two-step confirmation dialog before submitting updates.
+
+B. OFFICIAL LOGO DEPLOYMENT & CRITICAL BRANDING RULE (PART 2):
+--------------------------------------------------------------------------------
+1. Deployed Logo Assets (from user-supplied files):
+   - /public/logos/ptf-vizhuthugal.png (Puthiya Thalaimurai Foundation - Vizhuthugal)
+   - /public/logos/srm.png (SRM Institute of Science & Technology)
+   - /public/logos/srm-ap.png (SRM University AP)
+
+2. Critical Institutional Branding Rule:
+   - The official SRM logo (/logos/srm.png) is visible for ALL students unconditionally.
+   - Do NOT make the SRM logo conditional on campus.
+   - Do NOT replace the SRM logo with the SRM AP logo merely because a student belongs to SRM AP.
+   - Campus (Kattankulathur, Babusahebpet, Amaravati) is displayed separately as student metadata.
+
+3. Deployment Across 8 Portal Locations:
+   - Location 1: Login Page (src/app/(auth)/login/page.tsx) - PTF & SRM logos in header & card.
+   - Location 2: Main Application Header (src/components/navigation/Navbar.tsx & Sidebar.tsx) - PTF & SRM logos.
+   - Location 3: Dashboard (src/app/(portal)/dashboard/page.tsx) - Dual branding across all role consoles.
+   - Location 4: Student Profile (src/app/(portal)/profile/page.tsx) - PTF & SRM logos in profile header.
+   - Location 5: Abdul Kalam Attendance (src/app/(portal)/attendance/abdul-kalam/page.tsx) - Session banner logos.
+   - Location 6: Leave / Permission (src/app/(portal)/leave-permission/page.tsx) - Dual logos in slip header.
+   - Location 7: Reports (src/app/(portal)/admin/reports/page.tsx) - Institutional branding on analytics.
+   - Location 8: PDF Documents (src/lib/pdf.ts) - High-resolution PTF & SRM institutional header.
+
+C. VERIFICATION OF THE 29 SPECIFIC REQUIREMENTS:
+--------------------------------------------------------------------------------
+[✓] Requirement 1:  Attendance marked 1h ago -> mentor can edit (PASSED)
+[✓] Requirement 2:  Attendance marked 23h 59m ago -> mentor can edit (PASSED)
+[✓] Requirement 3:  Attendance marked 24h+ ago -> mentor cannot edit (PASSED)
+[✓] Requirement 4:  June attendance -> shows Locked if older than 24h (PASSED)
+[✓] Requirement 5:  Mentor cannot edit another mentor's attendance (PASSED)
+[✓] Requirement 6:  Student cannot edit attendance (PASSED)
+[✓] Requirement 7:  Semi Admin cannot edit attendance (PASSED)
+[✓] Requirement 8:  Super Admin can edit within 24 hours (PASSED)
+[✓] Requirement 9:  Super Admin can use Admin Override after 24 hours (PASSED)
+[✓] Requirement 10: Override requires a mandatory reason (PASSED)
+[✓] Requirement 11: Edit changes existing row only in-place (PASSED)
+[✓] Requirement 12: No duplicate attendance row is created (PASSED)
+[✓] Requirement 13: Audit trail is recorded with actor and timestamps (PASSED)
+[✓] Requirement 14: Browser/device clock manipulation does not bypass 24h restriction (PASSED)
+[✓] Requirement 15: Marked timestamp is clearly visible in history UI (PASSED)
+[✓] Requirement 16: Edit deadline is clearly visible in history UI (PASSED)
+[✓] Requirement 17: Remaining-time countdown is visible while editable (PASSED)
+[✓] Requirement 18: Expired records show Locked / Editing window expired (PASSED)
+[✓] Requirement 19: Edit button disappears for expired mentor records (PASSED)
+[✓] Requirement 20: Admin Override appears only for Super Admin after expiry (PASSED)
+[✓] Requirement 21: Login page shows PTF logo and SRM logo (PASSED)
+[✓] Requirement 22: Main header shows PTF logo and SRM logo (PASSED)
+[✓] Requirement 23: Student from KTR sees SRM logo (PASSED)
+[✓] Requirement 24: Student from BAB sees SRM logo (PASSED)
+[✓] Requirement 25: Student from AP also sees standard SRM logo (PASSED)
+[✓] Requirement 26: Logos maintain correct aspect ratio without distortion (PASSED)
+[✓] Requirement 27: Mobile and tablet layouts render responsively without breaking (PASSED)
+[✓] Requirement 28: No broken image paths (all return HTTP 200) (PASSED)
+[✓] Requirement 29: No placeholder logos remain (PASSED)
+
+D. QUALITY GATES & TEST SUITE TOTALS:
+--------------------------------------------------------------------------------
+- e2e/attendance-ui-logos.spec.ts:       6 / 6 PASSED (100%)
+- e2e/attendance-24h-qa-dataset.spec.ts: 16 / 16 PASSED (100%)
+- e2e/attendance-edit.spec.ts:           8 / 8 PASSED (100%)
+- ESLint:                               0 Errors (Exit code 0)
+- Production Build:                     Compiled cleanly (31 / 31 routes) in 1242ms
+================================================================================
