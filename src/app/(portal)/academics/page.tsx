@@ -9,22 +9,48 @@ import { AcademicRecord, Semester } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { GraduationCap, Award, FileText, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, Award, FileText, CheckCircle2, Download } from 'lucide-react';
+import { ExportMarkSheetModal } from '@/components/academics/ExportMarkSheetModal';
+import { Student } from '@/types';
 
 export default function AcademicsPage() {
   const { role, student } = useAuth();
   const router = useRouter();
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
 
   const supabase = createClient();
   const isStudent = role === 'STUDENT';
+  const isAdmin = role === 'SUPER_ADMIN' || role === 'SEMI_ADMIN';
+  const isSecretary = role === 'PTF_SECRETARY';
 
   useEffect(() => {
     if (role === 'STAFF_MENTOR') {
       router.replace('/attendance/abdul-kalam');
     }
   }, [role, router]);
+
+  useEffect(() => {
+    async function loadMeta() {
+      if (isAdmin || isSecretary) {
+        const { data: sems } = await supabase
+          .from('semesters')
+          .select('*')
+          .order('semester_number', { ascending: true });
+        if (sems) setSemesters(sems);
+
+        const { data: stds } = await supabase
+          .from('students')
+          .select('*, profile:profiles(*)')
+          .order('ptf_id', { ascending: true });
+        if (stds) setAllStudents(stds as any);
+      }
+    }
+    loadMeta();
+  }, [isAdmin, isSecretary]);
 
   useEffect(() => {
     async function loadRecords() {
@@ -65,11 +91,24 @@ export default function AcademicsPage() {
           </p>
         </div>
 
-        <Link href="/academics/ct-marks">
-          <Button variant="primary" size="md" leftIcon={<GraduationCap className="w-4 h-4 text-[#D4AF37]" />}>
-            Cycle Test (CT) Marks →
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          {(isAdmin || isSecretary) && (
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Download className="w-4 h-4 text-[#D4AF37]" />}
+              onClick={() => setIsExportModalOpen(true)}
+            >
+              Export Mark Sheet
+            </Button>
+          )}
+
+          <Link href="/academics/ct-marks">
+            <Button variant="primary" size="md" leftIcon={<GraduationCap className="w-4 h-4 text-[#D4AF37]" />}>
+              Cycle Test (CT) Marks →
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Overview Cards */}
@@ -143,6 +182,16 @@ export default function AcademicsPage() {
           </div>
         )}
       </div>
+
+      {/* Export Mark Sheet Modal */}
+      {(isAdmin || isSecretary) && (
+        <ExportMarkSheetModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          semesters={semesters}
+          allStudents={allStudents}
+        />
+      )}
     </div>
   );
 }

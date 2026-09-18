@@ -33,7 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {onMenuToggle && (
             <button
               onClick={onMenuToggle}
-              className="p-2 -ml-2 rounded-lg text-[#475569] hover:text-[#0A192F] hover:bg-[#F1F5F9] md:hidden transition-colors"
+              className="p-2 -ml-2 rounded-lg text-[#475569] hover:text-[#0A192F] hover:bg-[#F1F5F9] lg:hidden transition-colors cursor-pointer"
               aria-label="Toggle navigation menu"
             >
               <Menu className="w-5 h-5" />

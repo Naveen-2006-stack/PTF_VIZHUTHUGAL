@@ -21,9 +21,11 @@ import {
   Lock,
   FileCheck2,
   XCircle,
+  Download,
 } from 'lucide-react';
 import { logAuditEvent } from '@/lib/audit';
 import { sendNotification } from '@/lib/notifications';
+import { ExportMarkSheetModal } from '@/components/academics/ExportMarkSheetModal';
 
 export default function CtMarksPage() {
   const { role, profile, student } = useAuth();
@@ -57,6 +59,7 @@ export default function CtMarksPage() {
   const [selectedMarkForAction, setSelectedMarkForAction] = useState<SubjectMark | null>(null);
   const [actionType, setActionType] = useState<'VERIFY' | 'CORRECTION' | 'REJECT'>('VERIFY');
   const [adminRemarks, setAdminRemarks] = useState('');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
@@ -431,17 +434,30 @@ export default function CtMarksPage() {
           </p>
         </div>
 
-        {/* Student Entry Action */}
-        {isStudent && (
-          <Button
-            variant="primary"
-            size="md"
-            leftIcon={<Plus className="w-4 h-4 text-[#D4AF37]" />}
-            onClick={openNewEntryModal}
-          >
-            Enter CT Mark
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {(isAdmin || isSecretary) && (
+            <Button
+              variant="outline"
+              size="md"
+              leftIcon={<Download className="w-4 h-4 text-[#D4AF37]" />}
+              onClick={() => setIsExportModalOpen(true)}
+            >
+              Export Mark Sheet
+            </Button>
+          )}
+
+          {/* Student Entry Action */}
+          {isStudent && (
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={<Plus className="w-4 h-4 text-[#D4AF37]" />}
+              onClick={openNewEntryModal}
+            >
+              Enter CT Mark
+            </Button>
+          )}
+        </div>
       </div>
 
       {feedback && (
@@ -824,6 +840,18 @@ export default function CtMarksPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Export Mark Sheet Modal */}
+      {(isAdmin || isSecretary) && (
+        <ExportMarkSheetModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          semesters={semesters}
+          currentSemesterId={selectedSemesterId}
+          currentStudent={allStudents.find((s) => s.id === selectedStudentId) || null}
+          allStudents={allStudents}
+        />
+      )}
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   Clock,
   LogOut,
   UserCheck2,
+  X,
 } from 'lucide-react';
 import { UserRole } from '@/types';
 import { isNavItemActive } from '@/lib/navigation';
@@ -33,6 +34,8 @@ interface SidebarProps {
   ptfId?: string;
   isSpecialClassEligible?: boolean;
   onSignOut?: () => void;
+  isMobile?: boolean;
+  onClose?: () => void;
 }
 
 interface NavItem {
@@ -49,6 +52,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ptfId,
   isSpecialClassEligible = false,
   onSignOut,
+  isMobile = false,
+  onClose,
 }) => {
   const pathname = usePathname();
 
@@ -141,27 +146,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = getNavItems();
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 bg-[#0A192F] text-white border-r border-[#1E293B] min-h-screen sticky top-0">
+    <aside
+      className={
+        isMobile
+          ? 'flex flex-col w-72 max-w-[85vw] bg-[#0A192F] text-white border-r border-[#1E293B] h-full shadow-2xl overflow-hidden'
+          : 'hidden lg:flex flex-col w-64 bg-[#0A192F] text-white border-r border-[#1E293B] min-h-screen sticky top-0'
+      }
+    >
       {/* Top Branding Section */}
       <div className="p-4 border-b border-[#1E293B] space-y-3">
-        {/* 1. Puthiya Thalaimurai Foundation / Vizhuthugal */}
-        <Link href="/dashboard" className="block group">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-white px-2 py-1 rounded-lg shadow-sm">
-              <img
-                src="/logos/ptf-vizhuthugal.png"
-                alt="Puthiya Thalaimurai Foundation - Vizhuthugal"
-                className="h-7 w-auto object-contain"
-              />
+        {/* 1. Puthiya Thalaimurai Foundation / Vizhuthugal & Optional Mobile Close Button */}
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            href="/dashboard"
+            onClick={() => isMobile && onClose?.()}
+            className="block group flex-1"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="bg-white px-2 py-1 rounded-lg shadow-sm">
+                <img
+                  src="/logos/ptf-vizhuthugal.png"
+                  alt="Puthiya Thalaimurai Foundation - Vizhuthugal"
+                  className="h-7 w-auto object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-xs font-extrabold tracking-wider text-white group-hover:text-[#D4AF37] transition-colors">
+                  VIZHUTHUGAL
+                </h1>
+                <p className="text-[9.5px] text-[#D4AF37] font-semibold tracking-wide uppercase">Puthiya Thalaimurai</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xs font-extrabold tracking-wider text-white group-hover:text-[#D4AF37] transition-colors">
-                VIZHUTHUGAL
-              </h1>
-              <p className="text-[9.5px] text-[#D4AF37] font-semibold tracking-wide uppercase">Puthiya Thalaimurai</p>
-            </div>
-          </div>
-        </Link>
+          </Link>
+
+          {isMobile && onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 -mr-1.5 text-[#94A3B8] hover:text-white hover:bg-[#1E293B] rounded-lg transition-colors cursor-pointer"
+              aria-label="Close navigation menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
 
         {/* 2. SRMIST & SRM University AP Partner Logos */}
         <div className="pt-2 border-t border-[#1E293B]/80 flex items-center gap-2">
@@ -199,6 +226,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => isMobile && onClose?.()}
               className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                 isActive
                   ? 'bg-[#D4AF37] text-[#0A192F] shadow-sm font-bold'
@@ -235,9 +263,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {onSignOut && (
             <button
-              onClick={onSignOut}
+              onClick={() => {
+                if (isMobile && onClose) onClose();
+                onSignOut();
+              }}
               title="Sign Out"
-              className="p-1.5 rounded-md text-[#94A3B8] hover:text-red-400 hover:bg-[#1E293B] transition-colors"
+              className="p-1.5 rounded-md text-[#94A3B8] hover:text-red-400 hover:bg-[#1E293B] transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>

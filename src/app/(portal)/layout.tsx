@@ -49,6 +49,28 @@ export default function PortalLayout({
     };
   }, [profile?.id, pathname]);
 
+  // Automatically close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll and listen for Escape key when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setIsMobileMenuOpen(false);
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = '';
+    }
+  }, [isMobileMenuOpen]);
+
   // Route security guard
   useEffect(() => {
     if (isLoading) return;
@@ -126,11 +148,14 @@ export default function PortalLayout({
         {/* Mobile Sidebar Overlay Drawer */}
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
+            {/* Backdrop with tap to dismiss */}
             <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
               onClick={() => setIsMobileMenuOpen(false)}
+              aria-hidden="true"
             />
-            <div className="relative w-64 bg-[#0A192F] h-full z-10 shadow-2xl flex flex-col">
+            {/* Sliding Drawer Container */}
+            <div className="relative z-10 h-full flex transform transition-transform duration-300 ease-in-out">
               <Sidebar
                 role={currentRole}
                 campusCode={campusCode}
@@ -138,6 +163,8 @@ export default function PortalLayout({
                 ptfId={ptfId}
                 isSpecialClassEligible={isSpecialClassEligible}
                 onSignOut={signOut}
+                isMobile={true}
+                onClose={() => setIsMobileMenuOpen(false)}
               />
             </div>
           </div>
