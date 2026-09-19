@@ -7,9 +7,9 @@ test.describe('Sidebar Active State & Attendance History E2E Suite', () => {
     await page.goto('/attendance/abdul-kalam');
     await page.waitForLoadState('networkidle');
 
-    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' });
-    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' });
-    const dashboardLink = page.locator('aside nav a', { hasText: 'Dashboard' });
+    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' }).first();
+    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' }).first();
+    const dashboardLink = page.locator('aside nav a', { hasText: 'Dashboard' }).first();
 
     // Abdul Kalam Attendance link MUST have active yellow class
     await expect(abdulKalamLink).toHaveClass(/bg-\[#D4AF37\]/);
@@ -28,9 +28,9 @@ test.describe('Sidebar Active State & Attendance History E2E Suite', () => {
     await page.goto('/attendance');
     await page.waitForLoadState('networkidle');
 
-    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' });
-    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' });
-    const dashboardLink = page.locator('aside nav a', { hasText: 'Dashboard' });
+    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' }).first();
+    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' }).first();
+    const dashboardLink = page.locator('aside nav a', { hasText: 'Dashboard' }).first();
 
     // Attendance History link MUST have active yellow class
     await expect(historyLink).toHaveClass(/bg-\[#D4AF37\]/);
@@ -50,8 +50,8 @@ test.describe('Sidebar Active State & Attendance History E2E Suite', () => {
     // 1. Direct navigation to /attendance/abdul-kalam
     await page.goto('/attendance/abdul-kalam');
     await page.waitForLoadState('networkidle');
-    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' });
-    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' });
+    const abdulKalamLink = page.locator('aside nav a', { hasText: 'Abdul Kalam Attendance' }).first();
+    const historyLink = page.locator('aside nav a', { hasText: 'Attendance History' }).first();
 
     await expect(abdulKalamLink).toHaveClass(/bg-\[#D4AF37\]/);
     await expect(historyLink).not.toHaveClass(/bg-\[#D4AF37\]/);

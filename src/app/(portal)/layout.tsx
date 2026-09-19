@@ -146,29 +146,38 @@ export default function PortalLayout({
         />
 
         {/* Mobile Sidebar Overlay Drawer */}
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden flex">
-            {/* Backdrop with tap to dismiss */}
-            <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300"
-              onClick={() => setIsMobileMenuOpen(false)}
-              aria-hidden="true"
+        <div
+          className={`fixed inset-0 z-50 lg:hidden flex transition-opacity duration-300 ${
+            isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          aria-hidden={!isMobileMenuOpen}
+        >
+          {/* Backdrop with tap to dismiss */}
+          <div
+            className={`fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300 ${
+              isMobileMenuOpen ? 'opacity-100' : 'opacity-0'
+            }`}
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          {/* Sliding Drawer Container */}
+          <div
+            className={`relative z-10 h-full flex transform transition-transform duration-300 ease-in-out ${
+              isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
+          >
+            <Sidebar
+              role={currentRole}
+              campusCode={campusCode}
+              userName={userName}
+              ptfId={ptfId}
+              isSpecialClassEligible={isSpecialClassEligible}
+              onSignOut={signOut}
+              isMobile={true}
+              onClose={() => setIsMobileMenuOpen(false)}
             />
-            {/* Sliding Drawer Container */}
-            <div className="relative z-10 h-full flex transform transition-transform duration-300 ease-in-out">
-              <Sidebar
-                role={currentRole}
-                campusCode={campusCode}
-                userName={userName}
-                ptfId={ptfId}
-                isSpecialClassEligible={isSpecialClassEligible}
-                onSignOut={signOut}
-                isMobile={true}
-                onClose={() => setIsMobileMenuOpen(false)}
-              />
-            </div>
           </div>
-        )}
+        </div>
 
         {/* Main Content Viewport */}
         <div className="flex-1 flex flex-col min-w-0">
