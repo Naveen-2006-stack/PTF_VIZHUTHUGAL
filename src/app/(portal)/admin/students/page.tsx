@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
+import { BrandedLoader } from '@/components/ui/BrandedLoader';
 import {
   Users,
   Upload,
@@ -212,6 +213,10 @@ export default function AdminStudentsPage() {
     }
   };
 
+  if (isLoading) {
+    return <BrandedLoader text="Loading Scholar Directory..." fullScreen />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -342,53 +347,81 @@ export default function AdminStudentsPage() {
             onAction={() => setIsImportModalOpen(true)}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] uppercase font-bold text-[11px]">
-                  <th className="py-3 px-4">Scholar ID</th>
-                  <th className="py-3 px-4">Register Number</th>
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Campus</th>
-                  <th className="py-3 px-4">Department &amp; Year</th>
-                  <th className="py-3 px-4">Account Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E2E8F0]">
-                {filteredStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
-                    <td className="py-3 px-4 font-bold text-[#D4AF37]">
-                      {s.ptf_id}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-[#0A192F]">
-                      {s.register_number}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-[#0A192F]">
-                      {s.profile?.full_name || 'Unclaimed Account'}
-                      {s.profile?.email && (
-                        <span className="block text-[10px] text-[#64748B] font-normal">
-                          {s.profile.email}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-[#334155]">
-                      {s.campus?.code}
-                    </td>
-                    <td className="py-3 px-4 text-[#334155]">
-                      {s.department?.code} • Year {s.current_year}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge
-                        variant={s.status === 'ACTIVE' ? 'success' : 'neutral'}
-                        dot
-                      >
-                        {s.status}
-                      </Badge>
-                    </td>
+          <div className="w-full">
+            {/* Mobile View (Cards) */}
+            <div className="md:hidden space-y-4">
+              {filteredStudents.map((s) => (
+                <div key={s.id} className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-bold text-[#0A192F] text-sm">
+                        {s.profile?.full_name || 'Unclaimed Account'}
+                      </h4>
+                      <span className="text-[#D4AF37] font-bold text-xs">{s.ptf_id}</span>
+                    </div>
+                    <Badge variant={s.status === 'ACTIVE' ? 'success' : 'neutral'} dot>
+                      {s.status}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 mt-3 text-xs text-[#475569]">
+                    <p><span className="font-semibold text-[#0A192F]">Reg No:</span> {s.register_number}</p>
+                    <p><span className="font-semibold text-[#0A192F]">Campus:</span> {s.campus?.code}</p>
+                    <p><span className="font-semibold text-[#0A192F]">Dept:</span> {s.department?.code} • Year {s.current_year}</p>
+                    {s.profile?.email && <p><span className="font-semibold text-[#0A192F]">Email:</span> {s.profile.email}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop View (Table) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[#64748B] uppercase font-bold text-[11px]">
+                    <th className="py-3 px-4">Scholar ID</th>
+                    <th className="py-3 px-4">Register Number</th>
+                    <th className="py-3 px-4">Student Name</th>
+                    <th className="py-3 px-4">Campus</th>
+                    <th className="py-3 px-4">Department &amp; Year</th>
+                    <th className="py-3 px-4">Account Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#E2E8F0]">
+                  {filteredStudents.map((s) => (
+                    <tr key={s.id} className="hover:bg-[#F8FAFC] transition-colors">
+                      <td className="py-3 px-4 font-bold text-[#D4AF37]">
+                        {s.ptf_id}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-[#0A192F]">
+                        {s.register_number}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-[#0A192F]">
+                        {s.profile?.full_name || 'Unclaimed Account'}
+                        {s.profile?.email && (
+                          <span className="block text-[10px] text-[#64748B] font-normal">
+                            {s.profile.email}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-[#334155]">
+                        {s.campus?.code}
+                      </td>
+                      <td className="py-3 px-4 text-[#334155]">
+                        {s.department?.code} • Year {s.current_year}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge
+                          variant={s.status === 'ACTIVE' ? 'success' : 'neutral'}
+                          dot
+                        >
+                          {s.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

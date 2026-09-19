@@ -245,6 +245,12 @@ export default function LeavePermissionPage() {
   // Admin approves / rejects request and generates official PDF slip upon approval
   const handleReviewDecision = async (decision: 'APPROVED' | 'REJECTED') => {
     if (!selectedRequest) return;
+    
+    if (!isAdmin) {
+      setFeedback({ type: 'error', message: 'You do not have permission to approve or reject requests.' });
+      return;
+    }
+
     setIsSubmitting(true);
 
     const tableName = selectedReqType === 'LEAVE' ? 'leave_requests' : 'permission_requests';
@@ -329,7 +335,7 @@ export default function LeavePermissionPage() {
   };
 
   // PDF Slip Download Handler
-  const handleDownloadSlip = (req: any, type: 'LEAVE' | 'PERMISSION') => {
+  const handleDownloadSlip = async (req: any, type: 'LEAVE' | 'PERMISSION') => {
     const docInfo = approvalDocs[req.id];
     const slipNo = docInfo?.slip_number || `PTF-${type === 'LEAVE' ? 'LV' : 'PR'}-2026-000001`;
 
@@ -356,7 +362,7 @@ export default function LeavePermissionPage() {
       organization: 'Puthiya Thalaimurai Foundation',
     };
 
-    const pdf = generateApprovalSlipPDF(slipData);
+    const pdf = await generateApprovalSlipPDF(slipData);
     pdf.save(`${slipNo}.pdf`);
   };
 

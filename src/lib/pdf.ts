@@ -24,7 +24,7 @@ export interface ApprovalSlipData {
   organization: string;
 }
 
-export function generateApprovalSlipPDF(data: ApprovalSlipData): jsPDF {
+export async function generateApprovalSlipPDF(data: ApprovalSlipData): Promise<jsPDF> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -40,6 +40,34 @@ export function generateApprovalSlipPDF(data: ApprovalSlipData): jsPDF {
   doc.setLineWidth(0.5);
   doc.rect(10, 10, 190, 277);
 
+  // Helper to load image
+  const loadImageData = async (url: string): Promise<string | null> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.warn('Failed to load image:', url);
+      return null;
+    }
+  };
+
+  const leftLogo = await loadImageData('/logos/icon.avif');
+  
+  let rightLogoUrl = '/logos/srmist.png'; // default
+  if (data.campusName?.toLowerCase().includes('ap') || data.campusName?.toUpperCase().includes('SRM_AP')) {
+    rightLogoUrl = '/logos/srm-university-ap.png';
+  } else if (data.campusName?.toUpperCase().includes('BAB')) {
+    rightLogoUrl = '/logos/srmist.png'; // Fallback to generic SRM for BAB if specific logo not available
+  }
+  
+  const rightLogo = await loadImageData(rightLogoUrl);
+
   // Header Banner
   doc.setFillColor(10, 25, 47);
   doc.rect(11, 11, 188, 34, 'F');
@@ -54,6 +82,14 @@ export function generateApprovalSlipPDF(data: ApprovalSlipData): jsPDF {
   doc.setTextColor(212, 175, 55);
   doc.setFontSize(11);
   doc.text('VIZHUTHUGAL SCHOLARSHIP SCHEME', 105, 25, { align: 'center' });
+
+  if (leftLogo) {
+    doc.addImage(leftLogo, 'PNG', 15, 14, 20, 20); // Add the icon.avif logo on the left
+  }
+  
+  if (rightLogo) {
+    doc.addImage(rightLogo, 'PNG', 175, 14, 20, 20); // Add the campus logo on the right
+  }
 
   const isApCampus = data.campusName?.toLowerCase().includes('amaravati') || 
                      data.campusName?.toLowerCase().includes('ap') ||
@@ -186,10 +222,12 @@ export function generateApprovalSlipPDF(data: ApprovalSlipData): jsPDF {
   doc.setDrawColor(212, 175, 55);
   doc.setLineWidth(1);
   doc.circle(36, finalTableY + 27, 12);
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(212, 175, 55);
   doc.setFont('helvetica', 'bold');
-  doc.text('PTF SEAL', 36, finalTableY + 28, { align: 'center' });
+  doc.text('APPROVED', 36, finalTableY + 26, { align: 'center' });
+  doc.text('DIGITALLY', 36, finalTableY + 29, { align: 'center' });
+  doc.text('VERIFIED', 36, finalTableY + 32, { align: 'center' });
 
   // Verification text
   doc.setTextColor(10, 25, 47);
@@ -201,6 +239,7 @@ export function generateApprovalSlipPDF(data: ApprovalSlipData): jsPDF {
   doc.text(`Authorized by: ${data.approverName}`, 60, finalTableY + 24);
   doc.text(`Designation: ${data.approverDesignation}`, 60, finalTableY + 29);
   doc.text(`Institution: ${data.organization}`, 60, finalTableY + 34);
+  doc.text(`Verification ID: ${data.slipNumber}-${new Date(data.approvedAt).getTime().toString().slice(-6)}`, 60, finalTableY + 39);
 
   // Security Watermark & Notice Footer
   doc.setFontSize(7.5);

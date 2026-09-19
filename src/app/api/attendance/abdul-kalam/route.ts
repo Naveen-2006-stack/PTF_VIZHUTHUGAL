@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Check student Abdul Kalam Eligibility
+      // Check student Abdul Kalam Eligibility and Campus
       const { data: eligibility } = await supabase
         .from('special_class_eligibility')
         .select('is_eligible')
@@ -54,6 +54,18 @@ export async function POST(request: Request) {
 
       if (!eligibility || !eligibility.is_eligible) {
         errors.push(`Student is not eligible for Abdul Kalam Class.`);
+        continue;
+      }
+
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('campus:campuses(code)')
+        .eq('id', studentId)
+        .single();
+        
+      // @ts-ignore
+      if (studentData?.campus?.code === 'SRM_AP') {
+        errors.push(`SRM AP students are excluded from Abdul Kalam Class.`);
         continue;
       }
 
@@ -212,19 +224,19 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // 24-Hour window verification (calculated using server timestamp against created_at)
-    const createdAtTime = new Date(record.created_at).getTime();
-    const serverTime = Date.now();
-    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
-    const isWindowExpired = (serverTime - createdAtTime) > twentyFourHoursMs;
+    // Enforce 08:00 AM (Morning) / 08:00 PM (Evening) IST cutoffs
+    const cutoffHourStr = record.session_type === 'MORNING' ? '08:00:00' : '20:00:00';
+    const cutoffIsoStr = `${record.attendance_date}T${cutoffHourStr}+05:30`;
+    const cutoffTimeMs = new Date(cutoffIsoStr).getTime();
+    const serverTimeMs = Date.now();
+    const isWindowExpired = serverTimeMs > cutoffTimeMs;
 
     if (!isSuperAdmin && isWindowExpired) {
       return NextResponse.json(
         {
           error: 'ATTENDANCE_EDIT_WINDOW_EXPIRED',
-          message: 'Attendance can only be edited within 24 hours of marking.',
-          created_at: record.created_at,
-          expired_at: new Date(createdAtTime + twentyFourHoursMs).toISOString(),
+          message: `Attendance for ${record.session_type} sessions can only be edited before ${record.session_type === 'MORNING' ? '08:00 AM' : '08:00 PM'} IST on ${record.attendance_date}.`,
+          expired_at: new Date(cutoffTimeMs).toISOString(),
         },
         { status: 409 }
       );
